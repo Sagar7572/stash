@@ -66,6 +66,8 @@ function TabLink({
 export default function BottomTabBar() {
   const pathname = usePathname();
 
+  if (pathname.startsWith("/login")) return null;
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-tint bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-md items-end justify-around px-4">
