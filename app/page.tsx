@@ -1,16 +1,48 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Chip from "@/components/Chip";
 import StatusBadge from "@/components/StatusBadge";
 import TypeIcon from "@/components/TypeIcon";
 import { displaySource } from "@/lib/data";
+import { createClient } from "@/lib/supabase/client";
 import { useItems } from "@/lib/useItems";
+
+interface ProfileInfo {
+  name: string;
+  email: string;
+  avatarUrl: string;
+}
 
 export default function DashboardPage() {
   const { items, loading } = useItems();
   const [subject, setSubject] = useState("All");
+  const [profile, setProfile] = useState<ProfileInfo | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    createClient()
+      .auth.getUser()
+      .then(({ data }) => {
+        if (cancelled || !data.user) return;
+        const meta = data.user.user_metadata as Record<string, string>;
+        setProfile({
+          name: meta.full_name || meta.name || "",
+          email: data.user.email ?? meta.email ?? "",
+          avatarUrl: meta.avatar_url || meta.picture || "",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const emailPrefix = profile?.email.split("@")[0] ?? "";
+  const firstName = profile?.name ? profile.name.trim().split(/\s+/)[0] : emailPrefix;
+  const initial = (firstName[0] ?? "").toUpperCase();
+  const avatarUrl = profile?.avatarUrl ?? "";
 
   const subjects = [...new Set(items.map((item) => item.subject).filter(Boolean))].sort(
     (a, b) => a.localeCompare(b)
@@ -26,12 +58,30 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-bold tracking-tight text-ink">
           Stash<span className="text-primary">.</span>
         </h1>
-        <Link
-          href="/add"
-          className="rounded-full bg-tint px-4 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
-        >
-          + New
-        </Link>
+
+        <div className="flex items-center gap-2.5">
+          {firstName && (
+            <p className="text-[13px] font-medium">
+              <span className="hidden min-[360px]:inline text-ink-secondary">Hi, </span>
+              <span className="text-primary">{firstName}</span>
+            </p>
+          )}
+          <Link href="/profile" aria-label="Go to profile" className="shrink-0">
+            {avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8 rounded-full object-cover"
+              />
+            ) : (
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-tint text-sm font-semibold text-[#534AB7]">
+                {initial || "S"}
+              </span>
+            )}
+          </Link>
+        </div>
       </header>
 
       <Link
