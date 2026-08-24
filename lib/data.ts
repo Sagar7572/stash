@@ -26,5 +26,3 @@ export const STATUS_LABELS: Record<Status, string> = {
   reading: "Reading",
   done: "Done",
 };
-
-export const SUBJECTS = ["DBMS", "Strategy", "Marketing"];

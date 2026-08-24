@@ -42,6 +42,21 @@ export function useItems() {
   return { items, loading, refresh };
 }
 
+export async function fetchSubjects(): Promise<string[]> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase.from("items").select("subject");
+  const subjects = new Set(
+    (data ?? [])
+      .map((row) => (row as { subject: string }).subject)
+      .filter(Boolean)
+  );
+  return [...subjects].sort((a, b) => a.localeCompare(b));
+}
+
 export async function addItem(item: NewItem): Promise<string | null> {
   const supabase = createClient();
   const {

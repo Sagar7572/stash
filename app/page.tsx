@@ -5,18 +5,20 @@ import { useState } from "react";
 import Chip from "@/components/Chip";
 import StatusBadge from "@/components/StatusBadge";
 import TypeIcon from "@/components/TypeIcon";
-import { SUBJECTS, displaySource } from "@/lib/data";
+import { displaySource } from "@/lib/data";
 import { useItems } from "@/lib/useItems";
-
-const filters = ["All", ...SUBJECTS];
 
 export default function DashboardPage() {
   const { items, loading } = useItems();
   const [subject, setSubject] = useState("All");
 
-  const recent = items.filter((item) => item.status === "reading").slice(0, 3);
-  const filtered =
-    subject === "All" ? recent : recent.filter((item) => item.subject === subject);
+  const subjects = [...new Set(items.map((item) => item.subject).filter(Boolean))].sort(
+    (a, b) => a.localeCompare(b)
+  );
+  const filters = ["All", ...subjects];
+
+  const visible =
+    subject === "All" ? items : items.filter((item) => item.subject === subject);
 
   return (
     <div className="px-5 pt-8">
@@ -51,7 +53,7 @@ export default function DashboardPage() {
       </div>
 
       <section className="mt-3 pb-4">
-        <h2 className="text-base font-semibold text-ink">Pick up where you left off</h2>
+        <h2 className="text-base font-semibold text-ink">Your stash</h2>
         <div className="mt-4 space-y-3">
           {loading ? (
             <>
@@ -60,7 +62,7 @@ export default function DashboardPage() {
             </>
           ) : (
             <>
-              {filtered.map((item) => (
+              {visible.map((item) => (
                 <Link
                   key={item.id}
                   href={`/item/${item.id}`}
@@ -82,11 +84,13 @@ export default function DashboardPage() {
                   </div>
                 </Link>
               ))}
-              {filtered.length === 0 && (
+              {visible.length === 0 && (
                 <div className="rounded-xl bg-tint-soft p-8 text-center">
-                  <p className="text-sm font-medium text-ink">Nothing in progress here yet</p>
+                  <p className="text-sm font-medium text-ink">
+                    {subject === "All" ? "Nothing saved yet" : `Nothing saved under ${subject} yet`}
+                  </p>
                   <p className="mt-1 text-xs text-ink-muted">
-                    Save something and set it to Reading to pick it up later.
+                    Tap + New to add your first link, PDF or note.
                   </p>
                 </div>
               )}

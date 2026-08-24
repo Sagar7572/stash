@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { addItem } from "@/lib/useItems";
-import { SUBJECTS, STATUS_LABELS, type ItemType, type Status } from "@/lib/data";
+import { useEffect, useState } from "react";
+import SubjectCombobox from "@/components/SubjectCombobox";
+import { addItem, fetchSubjects } from "@/lib/useItems";
+import { STATUS_LABELS, type ItemType, type Status } from "@/lib/data";
 
 const inputClass =
   "w-full rounded-xl border border-[#E5E3F0] bg-white px-4 py-3 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
@@ -20,8 +21,19 @@ export default function AddItemPage() {
   const router = useRouter();
   const [type, setType] = useState<ItemType>("article");
   const [status, setStatus] = useState<Status>("to-read");
+  const [subjects, setSubjects] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSubjects().then((result) => {
+      if (!cancelled) setSubjects(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -38,7 +50,7 @@ export default function AddItemPage() {
       title: String(form.get("title") ?? "").trim(),
       url: String(form.get("url") ?? "").trim(),
       type,
-      subject: String(form.get("subject") ?? ""),
+      subject: String(form.get("subject") ?? "").trim(),
       tags,
       status,
       summary: String(form.get("summary") ?? "").trim(),
@@ -120,14 +132,7 @@ export default function AddItemPage() {
           <label htmlFor="subject" className={labelClass}>
             Subject
           </label>
-          <select id="subject" name="subject" defaultValue="" className={`${inputClass} appearance-none`}>
-            <option value="" disabled>
-              Choose a subject
-            </option>
-            {SUBJECTS.map((subject) => (
-              <option key={subject}>{subject}</option>
-            ))}
-          </select>
+          <SubjectCombobox name="subject" options={subjects} />
         </div>
 
         <div>
