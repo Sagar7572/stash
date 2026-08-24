@@ -5,16 +5,40 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import TypeIcon from "@/components/TypeIcon";
-import { STATUS_LABELS, deleteItem, type Status } from "@/lib/data";
-import { useItems } from "@/lib/useItems";
+import { STATUS_LABELS, displaySource, type Status } from "@/lib/data";
+import { deleteItem, updateItem, useItems } from "@/lib/useItems";
+
+interface Draft {
+  id: string;
+  status: Status;
+  notes: string;
+}
 
 export default function ItemDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const items = useItems();
+  const { items, loading, refresh } = useItems();
   const item = items.find((it) => it.id === params.id);
-  const [status, setStatus] = useState<Status>(item?.status ?? "to-read");
+
+  const [draft, setDraft] = useState<Draft>({ id: "", status: "to-read", notes: "" });
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  if (item && draft.id !== item.id) {
+    setDraft({ id: item.id, status: item.status, notes: item.notes ?? "" });
+  }
+  const status = draft.status;
+  const notes = draft.notes;
+
+  if (loading) {
+    return (
+      <div className="px-5 pt-8">
+        <div className="h-8 w-24 animate-pulse rounded-lg bg-tint-soft" />
+        <div className="mt-6 h-24 animate-pulse rounded-xl bg-tint-soft" />
+      </div>
+    );
+  }
 
   if (!item) {
     return (
@@ -25,6 +49,21 @@ export default function ItemDetailPage() {
         </Link>
       </div>
     );
+  }
+
+  async function handleStatusChange(value: Status) {
+    setDraft((d) => ({ ...d, status: value }));
+    await updateItem(item!.id, { status: value });
+    refresh();
+  }
+
+  async function handleSaveNotes() {
+    setSavingNotes(true);
+    await updateItem(item!.id, { notes });
+    setSavingNotes(false);
+    setNotesSaved(true);
+    setTimeout(() => setNotesSaved(false), 2000);
+    refresh();
   }
 
   return (
@@ -43,51 +82,69 @@ export default function ItemDetailPage() {
         <TypeIcon type={item.type} />
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold leading-snug tracking-tight text-ink">{item.title}</h1>
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 truncate text-sm font-medium text-primary hover:underline"
-          >
-            {item.source}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5 shrink-0">
-              <path d="M7 17 17 7m0 0H9m8 0v8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </a>
+          {item.url && (
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1 truncate text-sm font-medium text-primary hover:underline"
+            >
+              {displaySource(item.url)}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5 shrink-0">
+                <path d="M7 17 17 7m0 0H9m8 0v8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </a>
+          )}
         </div>
       </div>
 
-      <section className="mt-6 rounded-xl bg-tint-soft p-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Summary</h2>
-        <p className="mt-2 text-sm leading-relaxed text-ink">{item.summary}</p>
-      </section>
+      {item.summary && (
+        <section className="mt-6 rounded-xl bg-tint-soft p-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Summary</h2>
+          <p className="mt-2 text-sm leading-relaxed text-ink">{item.summary}</p>
+        </section>
+      )}
 
       <section className="mt-6">
-        <label htmlFor="notes" className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
-          My notes
-        </label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="notes" className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+            My notes
+          </label>
+          {notesSaved && <span className="text-xs font-medium text-primary">Saved ✓</span>}
+        </div>
         <textarea
           id="notes"
           rows={5}
-          defaultValue={item.notes}
+          value={notes}
+          onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
           placeholder="Add your own notes here…"
           className="mt-2 w-full resize-none rounded-xl border border-[#E5E3F0] bg-white px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
+        <button
+          type="button"
+          onClick={handleSaveNotes}
+          disabled={savingNotes}
+          className="mt-2 rounded-xl bg-tint px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white disabled:opacity-60"
+        >
+          {savingNotes ? "Saving…" : "Save notes"}
+        </button>
       </section>
 
-      <section className="mt-6">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Tags</h2>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {item.tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full bg-tint px-3 py-1 text-xs font-medium text-primary"
-            >
-              #{tag}
-            </span>
-          ))}
-        </div>
-      </section>
+      {item.tags.length > 0 && (
+        <section className="mt-6">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Tags</h2>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {item.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-tint px-3 py-1 text-xs font-medium text-primary"
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mt-6">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Status</h2>
@@ -96,7 +153,7 @@ export default function ItemDetailPage() {
             <button
               key={value}
               type="button"
-              onClick={() => setStatus(value)}
+              onClick={() => handleStatusChange(value)}
               className={`rounded-lg py-2 text-sm font-medium transition-colors ${
                 status === value ? "bg-primary text-white shadow-sm" : "text-ink-secondary"
               }`}
@@ -128,8 +185,9 @@ export default function ItemDetailPage() {
         open={confirmOpen}
         message="Delete this item?"
         onCancel={() => setConfirmOpen(false)}
-        onConfirm={() => {
-          deleteItem(item.id);
+        onConfirm={async () => {
+          setConfirmOpen(false);
+          await deleteItem(item.id);
           router.push("/library");
         }}
       />
