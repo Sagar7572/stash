@@ -6,7 +6,6 @@ export const maxDuration = 60;
 const API_KEY = process.env.GROQ_API_KEY;
 const BASE_URL = process.env.LLM_BASE_URL || "https://api.groq.com/openai/v1";
 const MODEL = process.env.LLM_MODEL || "llama-3.1-8b-instant";
-const IS_DEV = process.env.NODE_ENV !== "production";
 
 const JINA_READER_BASE = "https://r.jina.ai/http";
 const FETCH_TIMEOUT = 10000;
@@ -149,38 +148,6 @@ async function fetchPageContent(url: string): Promise<{ title: string; text: str
   return fetchWithJina(url);
 }
 
-async function fetchAndSummarize(
-  url: string,
-  maxAttempts = 2
-): Promise<{ summary: string; keywords: string[] } | null> {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    console.log(`[summarize] Attempt ${attempt}/${maxAttempts} for URL: ${url}`);
-    try {
-      const content = await fetchPageContent(url);
-
-      if (!content || content.text.length < MIN_TEXT_LENGTH) {
-        throw new Error("Could not extract enough content from page");
-      }
-
-      const prompt = `Summarize this article and extract keywords.
-
-Title: ${content.title}
-Content: ${content.text}
-
-Return JSON: { "summary": "~80 words", "keywords": ["kw1", "kw2", "kw3", "kw4", "kw5"] }`;
-
-      const result = await callLLMWithRetry(prompt, 2);
-      return result;
-    } catch (e) {
-      console.error(`[summarize] Attempt ${attempt} failed:`, e);
-      if (attempt === maxAttempts) throw e;
-      // Wait before retry with exponential backoff
-      await new Promise((r) => setTimeout(r, attempt * 1000));
-    }
-  }
-  return null;
-}
-
 async function callLLMWithRetry(
   prompt: string,
   maxAttempts = 2
@@ -199,7 +166,7 @@ async function callLLMWithRetry(
       { role: "user", content: prompt },
     ],
     temperature: 0.2,
-    max_tokens: 300,
+    max_tokens: 1000,
   };
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -237,9 +204,11 @@ async function callLLMWithRetry(
       }
 
       const data = await response.json();
+      console.log("[summarize] Raw LLM response:", JSON.stringify(data, null, 2));
       const content = data.choices[0]?.message?.content?.trim();
 
       if (!content) {
+        console.error("[summarize] Empty content in response:", JSON.stringify(data));
         if (attempt === maxAttempts) throw new Error("Empty response from LLM");
         continue;
       }
@@ -267,6 +236,7 @@ async function callLLMWithRetry(
 }
 
 export async function POST(req: NextRequest) {
+  let stage = "init";
   try {
     const { url } = await req.json();
 
@@ -274,11 +244,53 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Valid URL required" }, { status: 400 });
     }
 
-    const result = await fetchAndSummarize(url, 3);
+    // Stage 1: Fetch page content
+    stage = "fetch-direct";
+    console.log("[summarize] Stage: fetch-direct for URL:", url);
+    let content = await fetchPageContent(url);
+
+    if (!content || content.text.length < MIN_TEXT_LENGTH) {
+      stage = "fetch-jina";
+      console.log("[summarize] Stage: fetch-jina (fallback)");
+      const jinaContent = await fetchWithJina(url);
+      if (!jinaContent || jinaContent.text.length < MIN_TEXT_LENGTH) {
+        stage = "fetch-jina-failed";
+        return NextResponse.json(
+          { error: "Could not extract enough content from page", detail: "Both direct fetch and Jina AI fallback failed", stage: "fetch-jina-failed" },
+          { status: 422 }
+        );
+      }
+      content = jinaContent;
+    }
+
+    // Stage 2: LLM call
+    stage = "llm-call";
+    console.log("[summarize] Stage: llm-call for URL:", url);
+    const prompt = `Summarize this article and extract keywords.
+
+Title: ${content.title}
+Content: ${content.text}
+
+Return JSON: { "summary": "~80 words", "keywords": ["kw1", "kw2", "kw3", "kw4", "kw5"] }`;
+
+    let result;
+    try {
+      result = await callLLMWithRetry(prompt, 2);
+    } catch (e) {
+      stage = "llm-call-failed";
+      const err = e instanceof Error ? e : new Error(String(e));
+      console.error("[summarize] LLM call failed:", err);
+      if (err.stack) console.error(err.stack);
+      return NextResponse.json(
+        { error: "Summarization failed", detail: err.message, stage },
+        { status: 500 }
+      );
+    }
 
     if (!result) {
+      stage = "parse-failed";
       return NextResponse.json(
-        { error: "Could not summarize after retries" },
+        { error: "Could not summarize after retries", detail: "LLM returned no valid result", stage },
         { status: 500 }
       );
     }
@@ -288,9 +300,9 @@ export async function POST(req: NextRequest) {
     const err = e instanceof Error ? e : new Error(String(e));
     console.error("[summarize] error:", err);
     if (err.stack) console.error(err.stack);
-    const detail = IS_DEV ? err.message : undefined;
+    const detail = err.message;
     return NextResponse.json(
-      { error: "Summarization failed", detail },
+      { error: "Summarization failed", detail, stage },
       { status: 500 }
     );
   }
