@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const API_KEY = process.env.GROQ_API_KEY;
 const BASE_URL = process.env.LLM_BASE_URL || "https://api.groq.com/openai/v1";
@@ -9,7 +9,7 @@ const MODEL = process.env.LLM_MODEL || "llama-3.1-8b-instant";
 const IS_DEV = process.env.NODE_ENV !== "production";
 
 const JINA_READER_BASE = "https://r.jina.ai/http";
-const FETCH_TIMEOUT = 8000;
+const FETCH_TIMEOUT = 10000;
 const MAX_TEXT_LENGTH = 6000;
 const MIN_TEXT_LENGTH = 200;
 
@@ -151,7 +151,7 @@ async function fetchPageContent(url: string): Promise<{ title: string; text: str
 
 async function fetchAndSummarize(
   url: string,
-  maxAttempts = 3
+  maxAttempts = 2
 ): Promise<{ summary: string; keywords: string[] } | null> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     console.log(`[summarize] Attempt ${attempt}/${maxAttempts} for URL: ${url}`);
@@ -169,7 +169,7 @@ Content: ${content.text}
 
 Return JSON: { "summary": "~80 words", "keywords": ["kw1", "kw2", "kw3", "kw4", "kw5"] }`;
 
-      const result = await callLLMWithRetry(prompt, 3);
+      const result = await callLLMWithRetry(prompt, 2);
       return result;
     } catch (e) {
       console.error(`[summarize] Attempt ${attempt} failed:`, e);
@@ -183,7 +183,7 @@ Return JSON: { "summary": "~80 words", "keywords": ["kw1", "kw2", "kw3", "kw4", 
 
 async function callLLMWithRetry(
   prompt: string,
-  maxAttempts = 3
+  maxAttempts = 2
 ): Promise<{ summary: string; keywords: string[] }> {
   if (!API_KEY) {
     throw new Error("GROQ_API_KEY is missing. Add it to .env.local");
