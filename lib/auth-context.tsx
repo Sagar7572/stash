@@ -2,12 +2,14 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { mergeLocalToSupabase } from "@/lib/storage";
 import type { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  mergeLocalData: () => Promise<{ success: boolean; migratedCount: number; errors: string[] }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -15,6 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [prevUser, setPrevUser] = useState<User | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!cancelled) {
         setUser(user);
+        setPrevUser(user);
         setLoading(false);
       }
     }
@@ -32,7 +36,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = createClient().auth.onAuthStateChange((_event, session) => {
       if (!cancelled) {
-        setUser(session?.user ?? null);
+        const newUser = session?.user ?? null;
+        // Detect sign-in (was null, now has user)
+        if (prevUser === null && newUser !== null) {
+          // User just signed in - trigger merge
+          mergeLocalToSupabase().then(result => {
+            console.log("[auth] Merge result:", result);
+          });
+        }
+        setPrevUser(newUser);
+        setUser(newUser);
         setLoading(false);
       }
     });
@@ -48,8 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const mergeLocalData = async () => {
+    return mergeLocalToSupabase();
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signOut, mergeLocalData }}>
       {children}
     </AuthContext.Provider>
   );

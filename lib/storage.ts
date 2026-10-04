@@ -150,6 +150,53 @@ export async function deleteItem(id: string): Promise<void> {
   setLocalItems(items);
 }
 
+export async function mergeLocalToSupabase(): Promise<{ success: boolean; migratedCount: number; errors: string[] }> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { success: false, migratedCount: 0, errors: ["No authenticated user"] };
+  }
+
+  const localItems = getLocalItems();
+  if (localItems.length === 0) {
+    return { success: true, migratedCount: 0, errors: [] };
+  }
+
+  const migratedIds: string[] = [];
+  const errors: string[] = [];
+
+  for (const item of getLocalItems()) {
+    try {
+      const row = mapToSupabaseRow(item, user.id);
+      const { error } = await supabase.from("items").insert({
+        ...row,
+        id: item.id,
+        created_at: item.created_at,
+      });
+      if (error) {
+        errors.push(`Item "${item.title}": ${error.message}`);
+      } else {
+        migratedIds.push(item.id);
+      }
+    } catch (e) {
+      errors.push(`Item "${item.title}": ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  // Only remove successfully migrated items from localStorage
+  if (migratedIds.length > 0) {
+    const remainingItems = getLocalItems().filter(item => !migratedIds.includes(item.id));
+    setLocalItems(remainingItems);
+  }
+
+  return {
+    success: migratedIds.length > 0,
+    migratedCount: migratedIds.length,
+    errors,
+  };
+}
+
 export async function updateItem(
   id: string,
   patch: Partial<Pick<Item, "status" | "notes" | "summary" | "keywords">>

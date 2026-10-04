@@ -55,16 +55,18 @@ const EXAMPLE_ITEMS = [
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, mergeLocalData } = useAuth();
   const { items, loading: itemsLoading, refresh } = useLocalItems();
   const [subject, setSubject] = useState("All");
   const [profile, setProfile] = useState<{ name: string; email: string; avatarUrl: string } | null>(null);
   const [sampleAdded, setSampleAdded] = useState(false);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   const isLoading = authLoading || itemsLoading;
   const isSignedOut = !authLoading && !user;
   const hasRealItems = items.length > 0;
   const showOnboarding = isSignedOut && !hasRealItems && !sampleAdded;
+  const showNudge = isSignedOut && !sampleAdded && items.length >= 2 && !nudgeDismissed;
 
   useEffect(() => {
     if (!authLoading && !itemsLoading && user) {
@@ -77,6 +79,30 @@ export default function DashboardPage() {
       }, 0);
     }
   }, [authLoading, itemsLoading, user]);
+
+  // Trigger merge when user signs in (was signed out, now has user)
+  useEffect(() => {
+    if (!authLoading && user) {
+      mergeLocalData().then(result => {
+        console.log("[dashboard] Merge result:", result);
+      });
+    }
+  }, [authLoading, user]);
+
+  // Load nudge dismissed state from sessionStorage
+  useEffect(() => {
+    if (!authLoading) {
+      const dismissed = sessionStorage.getItem("nudgeDismissed");
+      if (dismissed) setTimeout(() => setNudgeDismissed(true), 0);
+    }
+  }, [authLoading]);
+
+  // Check if user just signed in (was signed out, now has user)
+  useEffect(() => {
+    if (!authLoading && user) {
+      // User just signed in - the auth context will handle the merge
+    }
+  }, [authLoading, user]);
 
   const emailPrefix = profile?.email.split("@")[0] ?? "";
   const firstName = profile?.name ? profile.name.trim().split(/\s+/)[0] : emailPrefix;
@@ -98,6 +124,11 @@ export default function DashboardPage() {
       setSampleAdded(true);
       refresh();
     }
+  };
+
+  const handleDismissNudge = () => {
+    setNudgeDismissed(true);
+    sessionStorage.setItem("nudgeDismissed", "true");
   };
 
   return (
@@ -200,6 +231,33 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {showNudge && (
+        <div className="mt-6 rounded-xl bg-primary/5 border border-primary/10 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-ink">Keep your stash safe</p>
+              <p className="mt-1 text-sm text-ink-secondary">
+                You&apos;ve saved 2 items. Sign in to keep them and reach your stash on any device.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={handleDismissNudge}
+                className="rounded-xl border border-[#E5E3F0] bg-white px-4 py-2 text-sm font-medium text-ink-secondary transition-colors hover:bg-tint-soft hover:text-primary"
+              >
+                Maybe later
+              </button>
+              <Link
+                href="/login"
+                className="rounded-xl bg-primary py-2 px-4 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-colors hover:bg-primary-dark"
+              >
+                Continue with Google
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Link
         href="/search"
         className="mt-6 flex items-center gap-2.5 rounded-xl border border-tint bg-tint-soft px-4 py-3 text-sm text-ink-muted transition-colors hover:border-primary/40"
@@ -272,3 +330,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
