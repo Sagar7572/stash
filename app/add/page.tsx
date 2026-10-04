@@ -7,6 +7,15 @@ import KeywordChips from "@/components/KeywordChips";
 import { addItem, fetchSubjects } from "@/lib/useItems";
 import { STATUS_LABELS, type ItemType, type Status } from "@/lib/data";
 
+function isValidUrl(url: string): boolean {
+  try {
+    new URL(url);
+    return url.startsWith("http://") || url.startsWith("https://");
+  } catch {
+    return false;
+  }
+}
+
 const inputClass =
   "w-full rounded-xl border border-[#E5E3F0] bg-white px-4 py-3 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
@@ -40,7 +49,10 @@ export default function AddItemPage() {
   }, []);
 
   async function handleSummarise(url: string) {
-    if (!url || !/^https?:\/\//.test(url)) return;
+    if (!url || !isValidUrl(url)) {
+      setSummaryError("That doesn't look like a valid link. Check the URL and try again.");
+      return;
+    }
     setSummarising(true);
     setSummaryError(null);
 
@@ -51,7 +63,10 @@ export default function AddItemPage() {
         body: JSON.stringify({ url }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Summarization failed");
+      if (!res.ok) {
+        const userMsg = data.userMessage || data.error || "Summarization failed";
+        throw new Error(userMsg);
+      }
 
       if (data.summary) {
         const summaryEl = document.getElementById("summary") as HTMLTextAreaElement;
@@ -156,13 +171,13 @@ export default function AddItemPage() {
           <label htmlFor="summary" className={labelClass}>
             Summary
           </label>
-<textarea
-              id="summary"
-              name="summary"
-              rows={3}
-              placeholder={summarising ? "Fetching & summarising — can take a few seconds for some sites…" : "What is this about?"}
-              className={`${inputClass} resize-none`}
-            />
+          <textarea
+            id="summary"
+            name="summary"
+            rows={3}
+            placeholder={summarising ? "Fetching & summarising — can take a few seconds for some sites…" : "What is this about?"}
+            className={`${inputClass} resize-none`}
+          />
         </div>
 
         {keywords.length > 0 && (

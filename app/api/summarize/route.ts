@@ -236,27 +236,23 @@ async function callLLMWithRetry(
 }
 
 export async function POST(req: NextRequest) {
-  let stage = "init";
   try {
     const { url } = await req.json();
 
     if (!url || !/^https?:\/\//.test(url)) {
-      return NextResponse.json({ error: "Valid URL required" }, { status: 400 });
+      return NextResponse.json({ error: "Valid URL required", userMessage: "That doesn't look like a valid link. Check the URL and try again." }, { status: 400 });
     }
 
     // Stage 1: Fetch page content
-    stage = "fetch-direct";
-    console.log("[summarize] Stage: fetch-direct for URL:", url);
     let content = await fetchPageContent(url);
 
     if (!content || content.text.length < MIN_TEXT_LENGTH) {
-      stage = "fetch-jina";
       console.log("[summarize] Stage: fetch-jina (fallback)");
       const jinaContent = await fetchWithJina(url);
       if (!jinaContent || jinaContent.text.length < MIN_TEXT_LENGTH) {
-        stage = "fetch-jina-failed";
+        console.error("[summarize] Both direct fetch and Jina AI fallback failed for URL:", url);
         return NextResponse.json(
-          { error: "Could not extract enough content from page", detail: "Both direct fetch and Jina AI fallback failed", stage: "fetch-jina-failed" },
+          { error: "Could not extract enough content from page", userMessage: "This page doesn't have enough article text to summarise. Add a summary yourself below." },
           { status: 422 }
         );
       }
@@ -264,8 +260,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Stage 2: LLM call
-    stage = "llm-call";
-    console.log("[summarize] Stage: llm-call for URL:", url);
     const prompt = `Summarize this article and extract keywords.
 
 Title: ${content.title}
@@ -277,20 +271,18 @@ Return JSON: { "summary": "~80 words", "keywords": ["kw1", "kw2", "kw3", "kw4", 
     try {
       result = await callLLMWithRetry(prompt, 2);
     } catch (e) {
-      stage = "llm-call-failed";
       const err = e instanceof Error ? e : new Error(String(e));
       console.error("[summarize] LLM call failed:", err);
       if (err.stack) console.error(err.stack);
       return NextResponse.json(
-        { error: "Summarization failed", detail: err.message, stage },
+        { error: "Summarization failed", userMessage: "The AI summariser isn't available right now. Try again in a moment, or add a summary yourself." },
         { status: 500 }
       );
     }
 
     if (!result) {
-      stage = "parse-failed";
       return NextResponse.json(
-        { error: "Could not summarize after retries", detail: "LLM returned no valid result", stage },
+        { error: "Could not summarize after retries", userMessage: "Couldn't summarise this page. You can add a summary manually and still save it." },
         { status: 500 }
       );
     }
@@ -300,9 +292,8 @@ Return JSON: { "summary": "~80 words", "keywords": ["kw1", "kw2", "kw3", "kw4", 
     const err = e instanceof Error ? e : new Error(String(e));
     console.error("[summarize] error:", err);
     if (err.stack) console.error(err.stack);
-    const detail = err.message;
     return NextResponse.json(
-      { error: "Summarization failed", detail, stage },
+      { error: "Summarization failed", userMessage: "Couldn't summarise this page. You can add a summary manually and still save it." },
       { status: 500 }
     );
   }
