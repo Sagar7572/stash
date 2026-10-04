@@ -134,7 +134,7 @@ export async function addItem(item: Omit<Item, "id" | "created_at">): Promise<st
   };
   items.unshift(newItem);
   setLocalItems(items);
-  return null;
+  return newItem.id;
 }
 
 export async function deleteItem(id: string): Promise<void> {
