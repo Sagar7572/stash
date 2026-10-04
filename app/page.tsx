@@ -7,37 +7,29 @@ import Chip from "@/components/Chip";
 import StatusBadge from "@/components/StatusBadge";
 import TypeIcon from "@/components/TypeIcon";
 import { displaySource } from "@/lib/data";
-import { createClient } from "@/lib/supabase/client";
-import { useItems } from "@/lib/useItems";
-
-interface ProfileInfo {
-  name: string;
-  email: string;
-  avatarUrl: string;
-}
+import { useAuth } from "@/lib/auth-context";
+import { fetchItems, fetchSubjects, useLocalItems } from "@/lib/storage";
 
 export default function DashboardPage() {
-  const { items, loading } = useItems();
+  const { user, loading: authLoading } = useAuth();
+  const { items, loading: itemsLoading, refresh } = useLocalItems();
   const [subject, setSubject] = useState("All");
-  const [profile, setProfile] = useState<ProfileInfo | null>(null);
+  const [profile, setProfile] = useState<{ name: string; email: string; avatarUrl: string } | null>(null);
+
+  const isLoading = authLoading || itemsLoading;
 
   useEffect(() => {
-    let cancelled = false;
-    createClient()
-      .auth.getUser()
-      .then(({ data }) => {
-        if (cancelled || !data.user) return;
-        const meta = data.user.user_metadata as Record<string, string>;
-        setProfile({
-          name: meta.full_name || meta.name || "",
-          email: data.user.email ?? meta.email ?? "",
-          avatarUrl: meta.avatar_url || meta.picture || "",
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!authLoading && !itemsLoading && user) {
+      const meta = user.user_metadata as Record<string, string>;
+      const name = meta.full_name || meta.name || "";
+      const email = user.email ?? "";
+      const avatarUrl = (meta.avatar_url || meta.picture || "") as string;
+      // Defer setProfile to avoid synchronous setState in effect
+      setTimeout(() => {
+        setProfile({ name, email, avatarUrl });
+      }, 0);
+    }
+  }, [authLoading, itemsLoading, user]);
 
   const emailPrefix = profile?.email.split("@")[0] ?? "";
   const firstName = profile?.name ? profile.name.trim().split(/\s+/)[0] : emailPrefix;
@@ -49,8 +41,7 @@ export default function DashboardPage() {
   );
   const filters = ["All", ...subjects];
 
-  const visible =
-    subject === "All" ? items : items.filter((item) => item.subject === subject);
+  const visible = subject === "All" ? items : items.filter((item) => item.subject === subject);
 
   return (
     <div className="px-5 pt-8">
@@ -105,7 +96,7 @@ export default function DashboardPage() {
       <section className="mt-3 pb-4">
         <h2 className="text-base font-semibold text-ink">Your stash</h2>
         <div className="mt-4 space-y-3">
-          {loading ? (
+          {isLoading ? (
             <>
               <div className="h-20 animate-pulse rounded-xl bg-tint-soft" />
               <div className="h-20 animate-pulse rounded-xl bg-tint-soft" />

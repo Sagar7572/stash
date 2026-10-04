@@ -12,6 +12,7 @@ export interface Item {
   summary: string;
   notes: string;
   keywords: string[];
+  created_at: string;
 }
 
 export function displaySource(url: string): string {

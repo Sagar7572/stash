@@ -32,12 +32,8 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
-  if (!user && !isPublic) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
-  }
-
+  // No auth wall - signed-out users can access all pages
+  // Only redirect signed-in users away from login page
   if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/";

@@ -7,7 +7,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import KeywordChips from "@/components/KeywordChips";
 import TypeIcon from "@/components/TypeIcon";
 import { STATUS_LABELS, displaySource, type Status } from "@/lib/data";
-import { deleteItem, updateItem, updateSummary, updateKeywords, useItems } from "@/lib/useItems";
+import { deleteItem, updateItem, updateSummary, updateKeywords, useLocalItems } from "@/lib/storage";
 
 interface Draft {
   id: string;
@@ -18,7 +18,7 @@ interface Draft {
 export default function ItemDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { items, loading, refresh } = useItems();
+  const { items, loading, refresh } = useLocalItems();
   const item = items.find((it) => it.id === params.id);
 
   const [draft, setDraft] = useState<Draft>({ id: "", status: "to-read", notes: "" });

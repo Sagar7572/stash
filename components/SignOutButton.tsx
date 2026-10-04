@@ -2,11 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 
 export default function SignOutButton() {
   const router = useRouter();
+  const { signOut, user } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
+
+  if (!user) return null;
 
   return (
     <button
@@ -14,8 +17,7 @@ export default function SignOutButton() {
       disabled={signingOut}
       onClick={async () => {
         setSigningOut(true);
-        const supabase = createClient();
-        await supabase.auth.signOut();
+        await signOut();
         router.push("/login");
         router.refresh();
       }}

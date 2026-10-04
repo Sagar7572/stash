@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import SubjectCombobox from "@/components/SubjectCombobox";
 import KeywordChips from "@/components/KeywordChips";
-import { addItem, fetchSubjects } from "@/lib/useItems";
+import { addItem, fetchSubjects } from "@/lib/storage";
 import { STATUS_LABELS, type ItemType, type Status } from "@/lib/data";
 
 function isValidUrl(url: string): boolean {
