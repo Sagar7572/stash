@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import KeywordChips from "@/components/KeywordChips";
 import TypeIcon from "@/components/TypeIcon";
 import { STATUS_LABELS, displaySource, type Status } from "@/lib/data";
-import { deleteItem, updateItem, useItems } from "@/lib/useItems";
+import { deleteItem, updateItem, updateSummary, updateKeywords, useItems } from "@/lib/useItems";
 
 interface Draft {
   id: string;
@@ -24,21 +25,14 @@ export default function ItemDetailPage() {
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
 
   if (item && draft.id !== item.id) {
     setDraft({ id: item.id, status: item.status, notes: item.notes ?? "" });
   }
   const status = draft.status;
   const notes = draft.notes;
-
-  if (loading) {
-    return (
-      <div className="px-5 pt-8">
-        <div className="h-8 w-24 animate-pulse rounded-lg bg-tint-soft" />
-        <div className="mt-6 h-24 animate-pulse rounded-xl bg-tint-soft" />
-      </div>
-    );
-  }
 
   if (!item) {
     return (
@@ -51,18 +45,64 @@ export default function ItemDetailPage() {
     );
   }
 
+  if (loading) {
+    return (
+      <div className="px-5 pt-8">
+        <div className="h-8 w-24 animate-pulse rounded-lg bg-tint-soft" />
+        <div className="mt-6 h-24 animate-pulse rounded-xl bg-tint-soft" />
+      </div>
+    );
+  }
+
   async function handleStatusChange(value: Status) {
+    if (!item) return;
     setDraft((d) => ({ ...d, status: value }));
-    await updateItem(item!.id, { status: value });
+    await updateItem(item.id, { status: value });
     refresh();
   }
 
   async function handleSaveNotes() {
+    if (!item) return;
     setSavingNotes(true);
-    await updateItem(item!.id, { notes });
+    await updateItem(item.id, { notes });
     setSavingNotes(false);
     setNotesSaved(true);
     setTimeout(() => setNotesSaved(false), 2000);
+    refresh();
+  }
+
+  async function handleRegenerateSummary() {
+    if (!item || !item.url) return;
+    setRegenerating(true);
+    setRegenError(null);
+
+    try {
+      const res = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: item.url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Summarization failed");
+
+      if (data.summary) {
+        await updateSummary(item.id, data.summary);
+      }
+      if (data.keywords?.length) {
+        await updateKeywords(item.id, data.keywords);
+      }
+      refresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Regeneration failed";
+      setRegenError(msg);
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  async function handleKeywordsChange(newKeywords: string[]) {
+    if (!item) return;
+    await updateKeywords(item.id, newKeywords);
     refresh();
   }
 
@@ -100,8 +140,32 @@ export default function ItemDetailPage() {
 
       {item.summary && (
         <section className="mt-6 rounded-xl bg-tint-soft p-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Summary</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Summary</h2>
+            {item.url && (
+              <button
+                type="button"
+                onClick={handleRegenerateSummary}
+                disabled={regenerating}
+                className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+              >
+                {regenerating ? "Regenerating…" : "Regenerate summary"}
+              </button>
+            )}
+          </div>
           <p className="mt-2 text-sm leading-relaxed text-ink">{item.summary}</p>
+          {regenError && <p className="mt-2 text-xs text-red-500">{regenError}</p>}
+        </section>
+      )}
+
+      {item.keywords.length > 0 && (
+        <section className="mt-6">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Keywords</h2>
+          <KeywordChips
+            keywords={item.keywords}
+            onChange={handleKeywordsChange}
+            editable
+          />
         </section>
       )}
 

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import SubjectCombobox from "@/components/SubjectCombobox";
+import KeywordChips from "@/components/KeywordChips";
 import { addItem, fetchSubjects } from "@/lib/useItems";
 import { STATUS_LABELS, type ItemType, type Status } from "@/lib/data";
 
@@ -24,6 +25,9 @@ export default function AddItemPage() {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [summarising, setSummarising] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [keywords, setKeywords] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +38,35 @@ export default function AddItemPage() {
       cancelled = true;
     };
   }, []);
+
+  async function handleSummarise(url: string) {
+    if (!url || !/^https?:\/\//.test(url)) return;
+    setSummarising(true);
+    setSummaryError(null);
+
+    try {
+      const res = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Summarization failed");
+
+      if (data.summary) {
+        const summaryEl = document.getElementById("summary") as HTMLTextAreaElement;
+        if (summaryEl) summaryEl.value = data.summary;
+      }
+      if (data.keywords?.length) {
+        setKeywords(data.keywords);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Summarization failed";
+      setSummaryError(msg);
+    } finally {
+      setSummarising(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -55,6 +88,7 @@ export default function AddItemPage() {
       status,
       summary: String(form.get("summary") ?? "").trim(),
       notes: "",
+      keywords,
     });
 
     if (err) {
@@ -78,7 +112,30 @@ export default function AddItemPage() {
           <label htmlFor="url" className={labelClass}>
             URL
           </label>
-          <input id="url" name="url" type="url" placeholder="https://…" className={inputClass} />
+          <div className="flex gap-2">
+            <input
+              id="url"
+              name="url"
+              type="url"
+              placeholder="https://…"
+              className={`${inputClass} flex-1`}
+              onBlur={(e) => handleSummarise(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const urlEl = document.getElementById("url") as HTMLInputElement;
+                if (urlEl) handleSummarise(urlEl.value);
+              }}
+              disabled={summarising}
+              className="shrink-0 rounded-xl border border-[#E5E3F0] bg-white px-4 py-3 text-sm font-medium text-ink-secondary transition-colors hover:bg-tint-soft disabled:opacity-60"
+            >
+              {summarising ? "Fetching & summarising…" : "Summarise"}
+            </button>
+          </div>
+          {summaryError && (
+            <p className="mt-1.5 text-xs text-red-500">{summaryError}</p>
+          )}
         </div>
 
         <div>
@@ -99,14 +156,21 @@ export default function AddItemPage() {
           <label htmlFor="summary" className={labelClass}>
             Summary
           </label>
-          <textarea
-            id="summary"
-            name="summary"
-            rows={3}
-            placeholder="What is this about?"
-            className={`${inputClass} resize-none`}
-          />
+<textarea
+              id="summary"
+              name="summary"
+              rows={3}
+              placeholder={summarising ? "Fetching & summarising — can take a few seconds for some sites…" : "What is this about?"}
+              className={`${inputClass} resize-none`}
+            />
         </div>
+
+        {keywords.length > 0 && (
+          <div>
+            <label className={labelClass}>Keywords</label>
+            <KeywordChips keywords={keywords} onChange={setKeywords} />
+          </div>
+        )}
 
         <div>
           <span className={labelClass}>Type</span>

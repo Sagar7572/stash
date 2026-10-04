@@ -73,6 +73,7 @@ export async function addItem(item: NewItem): Promise<string | null> {
     status: item.status,
     summary: item.summary,
     notes: item.notes,
+    keywords: item.keywords,
     user_id: user.id,
   };
 
@@ -87,8 +88,24 @@ export async function deleteItem(id: string): Promise<void> {
 
 export async function updateItem(
   id: string,
-  patch: Partial<Pick<Item, "status" | "notes">>
+  patch: Partial<Pick<Item, "status" | "notes" | "summary" | "keywords">>
 ): Promise<void> {
   const supabase = createClient();
   await supabase.from("items").update(patch).eq("id", id);
+}
+
+export async function updateSummary(
+  id: string,
+  summary: string
+): Promise<void> {
+  const supabase = createClient();
+  await supabase.from("items").update({ summary }).eq("id", id);
+}
+
+export async function updateKeywords(
+  id: string,
+  keywords: string[]
+): Promise<void> {
+  const supabase = createClient();
+  await supabase.from("items").update({ keywords }).eq("id", id);
 }

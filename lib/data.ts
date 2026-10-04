@@ -11,6 +11,7 @@ export interface Item {
   status: Status;
   summary: string;
   notes: string;
+  keywords: string[];
 }
 
 export function displaySource(url: string): string {

@@ -1,32 +1,162 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import StatusBadge from "@/components/StatusBadge";
 import TypeIcon from "@/components/TypeIcon";
 import { displaySource } from "@/lib/data";
-import { useItems } from "@/lib/useItems";
+
+interface SearchResult {
+  id: string;
+  title: string;
+  summary: string;
+  keywords: string[];
+  url: string;
+  type: "article" | "pdf" | "note";
+  subject: string;
+  status: "to-read" | "reading" | "done";
+  created_at: string;
+  matches: Array<{ field: string; snippet: string }>;
+}
+
+function highlightWord(text: string, query: string): React.ReactNode {
+  const lowerQuery = query.toLowerCase().trim();
+  if (!lowerQuery) return text;
+
+  // Match whole words that start with the query (case-insensitive)
+  const regex = new RegExp(`(\\b\\w*${lowerQuery}\\w*\\b)`, "gi");
+  const parts = text.split(regex);
+
+  return (
+    <>
+      {parts.map((part, idx) =>
+        regex.test(part) ? (
+          <mark key={idx} className="bg-primary/15 text-primary px-0.5 rounded">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+}
+
+function makeSummarySnippet(summary: string, query: string): string {
+  const lowerQuery = query.toLowerCase().trim();
+  const lowerSummary = summary.toLowerCase();
+  const idx = lowerSummary.indexOf(lowerQuery);
+  if (idx === -1) return summary.slice(0, 160) + (summary.length > 160 ? "…" : "");
+
+  const wordsBefore = 6;
+  const wordsAfter = 8;
+  const beforeText = summary.slice(0, idx).trim().split(/\s+/).slice(-wordsBefore).join(" ");
+  const afterText = summary.slice(idx + query.length).trim().split(/\s+/).slice(0, wordsAfter).join(" ");
+
+  let snippet = "";
+  if (beforeText) snippet += beforeText + " ";
+  snippet += summary.slice(idx, idx + query.length);
+  if (afterText) snippet += " " + afterText;
+
+  if (idx > beforeText.length + 1) snippet = "…" + snippet;
+  if (idx + query.length + afterText.length < summary.length - 1) snippet += "…";
+
+  return snippet;
+}
+
+function highlightSummarySnippet(text: string, query: string): React.ReactNode {
+  const lowerQuery = query.toLowerCase().trim();
+  if (!lowerQuery) return text;
+
+  const parts = text.split(new RegExp(`(${lowerQuery})`, "i"));
+  if (parts.length < 3) return text;
+
+  return (
+    <>
+      {parts[0]}
+      <mark className="bg-primary/15 text-primary px-0.5 rounded">{parts[1]}</mark>
+      {parts[2]}
+    </>
+  );
+}
+
+function makeKeywordsSnippet(keywords: string[], query: string): string {
+  const lowerQuery = query.toLowerCase().trim();
+  const matched = keywords.filter(k => k.toLowerCase().includes(lowerQuery));
+  if (!matched.length) return "";
+  return matched.join(", ");
+}
+
+function highlightKeywordsSnippet(text: string, query: string): React.ReactNode {
+  const lowerQuery = query.toLowerCase().trim();
+  if (!lowerQuery) return text;
+
+  const parts = text.split(new RegExp(`(${lowerQuery})`, "i"));
+  if (parts.length < 3) return text;
+
+  return (
+    <>
+      {parts[0]}
+      <mark className="bg-primary/15 text-primary px-0.5 rounded">{parts[1]}</mark>
+      {parts[2]}
+    </>
+  );
+}
 
 export default function SearchPage() {
-  const { items, loading } = useItems();
   const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const cancelledRef = useRef(false);
 
-  const q = query.trim().toLowerCase();
-  const results =
-    q.length === 0
-      ? items
-      : items.filter((item) =>
-          [
-            item.title,
-            item.subject,
-            item.summary,
-            displaySource(item.url),
-            ...item.tags,
-          ]
-            .join(" ")
-            .toLowerCase()
-            .includes(q)
-        );
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // Clear results when query becomes empty
+  useEffect(() => {
+    if (!query.trim()) {
+      setTimeout(() => {
+        setResults([]);
+        setLoading(false);
+      }, 0);
+    }
+  }, [query]);
+
+  const doSearch = useCallback(async (searchQuery: string) => {
+    cancelledRef.current = false;
+    setTimeout(() => setLoading(true), 0);
+
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = await res.json();
+      if (!cancelledRef.current) {
+        setTimeout(() => setResults(data.results ?? []), 0);
+      }
+    } catch {
+      if (!cancelledRef.current) {
+        setTimeout(() => setResults([]), 0);
+      }
+    } finally {
+      if (!cancelledRef.current) {
+        setTimeout(() => setLoading(false), 0);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!debouncedQuery.trim() || debouncedQuery.trim().length < 3) return;
+    doSearch(debouncedQuery);
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, [debouncedQuery, doSearch]);
+
+  const isQueryValid = debouncedQuery.trim().length >= 3;
 
   return (
     <div className="px-5 pt-8">
@@ -36,7 +166,7 @@ export default function SearchPage() {
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search titles, tags, subjects…"
+        placeholder="Search titles, summaries, keywords…"
         className="mt-6 w-full rounded-xl border border-[#E5E3F0] bg-white px-4 py-3 text-sm text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
       />
 
@@ -46,37 +176,94 @@ export default function SearchPage() {
             <li key={i} className="h-[76px] animate-pulse rounded-xl bg-tint-soft" />
           ))}
 
-        {!loading &&
+        {!loading && !debouncedQuery.trim() && (
+          <li className="rounded-xl bg-tint-soft p-8 text-center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mx-auto h-8 w-8 text-ink-muted">
+              <path d="m20 20-4.05-4.05M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" strokeLinecap="round" />
+            </svg>
+            <p className="mt-4 text-sm font-medium text-ink">Search your stash</p>
+            <p className="mt-1 text-xs text-ink-muted">Type to find titles, summaries, or keywords</p>
+          </li>
+        )}
+
+        {!loading && debouncedQuery.trim() && debouncedQuery.trim().length < 3 && (
+          <li className="rounded-xl bg-tint-soft p-8 text-center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mx-auto h-8 w-8 text-ink-muted">
+              <path d="m20 20-4.05-4.05M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" strokeLinecap="round" />
+            </svg>
+            <p className="mt-4 text-sm font-medium text-ink">Type at least 3 characters</p>
+            <p className="mt-1 text-xs text-ink-muted">Search works with 3 or more characters</p>
+          </li>
+        )}
+
+        {!loading && isQueryValid &&
           results.map((item) => (
             <li key={item.id}>
               <Link
                 href={`/item/${item.id}`}
-                className="flex items-center gap-3 rounded-xl border border-[#EFEEF6] p-4 shadow-sm transition-shadow hover:shadow-md"
+                className="flex items-start gap-3 rounded-xl border border-[#EFEEF6] p-4 shadow-sm transition-shadow hover:shadow-md"
               >
                 <TypeIcon type={item.type} />
                 <div className="min-w-0 flex-1">
-                  <h3 className="line-clamp-1 text-sm font-semibold text-ink">{item.title}</h3>
+                  <h3 className="text-sm font-semibold text-ink">
+                    {highlightWord(item.title, query)}
+                  </h3>
                   <p className="mt-0.5 truncate text-xs text-ink-muted">
                     {displaySource(item.url)}
                   </p>
                   <span className="mt-1.5 inline-block rounded-full bg-tint-soft px-2 py-0.5 text-[10px] font-medium text-ink-secondary">
                     {item.subject}
                   </span>
+
+                  {item.matches.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {item.matches.map((match, idx) => {
+                        const isSummary = match.field === "summary";
+                        const isKeywords = match.field === "keywords";
+                        const snippet = isSummary ? makeSummarySnippet(match.snippet, query) : match.snippet;
+                        if (isSummary) {
+                          return (
+                            <span key={idx} className="inline-flex items-center gap-1 text-xs text-ink-secondary">
+                              <span className="font-medium text-primary">summary:</span>{" "}
+                              {highlightSummarySnippet(snippet, query)}
+                            </span>
+                          );
+                        }
+                        if (isKeywords) {
+                          const kwSnippet = makeKeywordsSnippet(item.keywords, query);
+                          return (
+                            <span key={idx} className="inline-flex items-center gap-1 text-xs text-ink-secondary">
+                              <span className="font-medium text-primary">keywords:</span>{" "}
+                              {kwSnippet ? highlightKeywordsSnippet(kwSnippet, query) : null}
+                            </span>
+                          );
+                        }
+                        return (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 rounded-full bg-tint px-2 py-0.5 text-[10px] font-medium text-primary"
+                          >
+                            <span className="uppercase">{match.field}</span>
+                            <span className="text-ink-muted">:</span>
+                            {highlightWord(snippet, query)}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <StatusBadge status={item.status} />
               </Link>
             </li>
           ))}
 
-        {!loading && results.length === 0 && (
+        {!loading && isQueryValid && results.length === 0 && (
           <li className="rounded-xl bg-tint-soft p-8 text-center">
             <p className="text-sm font-medium text-ink">
-              {q ? `No matches for “${query.trim()}”` : "Your stash is empty"}
+              No matches for “{query.trim()}”
             </p>
             <p className="mt-1 text-xs text-ink-muted">
-              {q
-                ? "Try a different title, tag or subject."
-                : "Tap + to save your first item."}
+              Try a different keyword or check spelling
             </p>
           </li>
         )}
