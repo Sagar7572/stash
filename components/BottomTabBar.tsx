@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
 
 const tabs = [
   {
@@ -64,53 +63,10 @@ function TabLink({
   );
 }
 
-function SignInButton() {
-  return (
-    <Link
-      href="/login"
-      className="flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-primary"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-6 w-6">
-        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4m-7 0h4m-7 0l5-5m0 0l5 5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      Sign in
-    </Link>
-  );
-}
-
 export default function BottomTabBar() {
   const pathname = usePathname();
-  const { user, loading } = useAuth();
 
   if (pathname.startsWith("/login")) return null;
-
-  if (loading) {
-    return (
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-tint bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-md items-end justify-around px-4">
-          <div className="flex items-end justify-around w-full px-4">
-            {tabs.map((tab) => (
-              <div key={tab.href} className="flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-ink-muted">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-6 w-6">
-                  {tab.icon}
-                </svg>
-                <span>{tab.label}</span>
-              </div>
-            ))}
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/40" />
-            {rightTabs.map((tab) => (
-              <div key={tab.href} className="flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-ink-muted">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-6 w-6">
-                  {tab.icon}
-                </svg>
-                <span>{tab.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </nav>
-    );
-  }
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-tint bg-white/95 backdrop-blur">
@@ -129,24 +85,10 @@ export default function BottomTabBar() {
           </svg>
         </Link>
 
-        {!user ? (
-          <>
-            <SignInButton />
-            {rightTabs.map((tab) => (
-              <TabLink key={tab.href} {...tab} active={pathname === tab.href} />
-            ))}
-          </>
-        ) : (
-          rightTabs.map((tab) => (
-            <TabLink key={tab.href} {...tab} active={pathname === tab.href} />
-          ))
-        )}
+        {rightTabs.map((tab) => (
+          <TabLink key={tab.href} {...tab} active={pathname === tab.href} />
+        ))}
       </div>
-      {!user && (
-        <p className="mx-auto mt-1 mb-2 text-center text-xs text-ink-muted max-w-md px-4">
-          Saved on this device — sign in to keep them everywhere
-        </p>
-      )}
     </nav>
   );
 }

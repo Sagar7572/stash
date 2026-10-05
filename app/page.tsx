@@ -80,16 +80,14 @@ export default function DashboardPage() {
     }
   }, [authLoading, itemsLoading, user]);
 
-  // Trigger merge when user signs in (was signed out, now has user)
   useEffect(() => {
     if (!authLoading && user) {
-      mergeLocalData().then(result => {
+      mergeLocalData().then((result) => {
         console.log("[dashboard] Merge result:", result);
       });
     }
   }, [authLoading, user]);
 
-  // Load nudge dismissed state from sessionStorage
   useEffect(() => {
     if (!authLoading) {
       const dismissed = sessionStorage.getItem("nudgeDismissed");
@@ -97,7 +95,6 @@ export default function DashboardPage() {
     }
   }, [authLoading]);
 
-  // Check if user just signed in (was signed out, now has user)
   useEffect(() => {
     if (!authLoading && user) {
       // User just signed in - the auth context will handle the merge
@@ -117,13 +114,9 @@ export default function DashboardPage() {
   const visible = subject === "All" ? items : items.filter((item) => item.subject === subject);
 
   const handleTrySample = async () => {
-    const newId = await addItem(SAMPLE_ITEM);
-    if (newId) {
-      router.push(`/item/${newId}`);
-    } else {
-      setSampleAdded(true);
-      refresh();
-    }
+    await addItem(SAMPLE_ITEM);
+    setSampleAdded(true);
+    refresh();
   };
 
   const handleDismissNudge = () => {
@@ -139,6 +132,17 @@ export default function DashboardPage() {
         </h1>
 
         <div className="flex items-center gap-2.5">
+          {isSignedOut && (
+            <Link
+              href="/login"
+              className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-colors hover:bg-primary-dark"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4m-7 0h4m-7 0l5-5m0 0l5 5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="text-sm font-semibold">Sign in</span>
+            </Link>
+          )}
           {firstName && (
             <p className="text-[13px] font-medium">
               <span className="hidden min-[360px]:inline text-ink-secondary">Hi, </span>
@@ -162,6 +166,12 @@ export default function DashboardPage() {
           </Link>
         </div>
       </header>
+
+      {isSignedOut && (
+        <p className="mt-1 text-xs text-ink-muted text-center text-ink-muted/70">
+          Saved on this device — sign in to keep them everywhere
+        </p>
+      )}
 
       <Link
         href="/search"
@@ -233,40 +243,30 @@ export default function DashboardPage() {
 
       {showNudge && (
         <div className="mt-6 rounded-xl bg-primary/5 border border-primary/10 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1">
+          <div className="space-y-4">
+            <div>
               <p className="text-sm font-semibold text-ink">Keep your stash safe</p>
               <p className="mt-1 text-sm text-ink-secondary">
                 You&apos;ve saved 2 items. Sign in to keep them and reach your stash on any device.
               </p>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex flex-col sm:flex-row gap-2 mt-4">
+              <Link
+                href="/login"
+                className="flex-1 rounded-xl bg-primary py-2 px-4 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-colors hover:bg-primary-dark text-center"
+              >
+                Continue with Google
+              </Link>
               <button
                 onClick={handleDismissNudge}
                 className="rounded-xl border border-[#E5E3F0] bg-white px-4 py-2 text-sm font-medium text-ink-secondary transition-colors hover:bg-tint-soft hover:text-primary"
               >
                 Maybe later
               </button>
-              <Link
-                href="/login"
-                className="rounded-xl bg-primary py-2 px-4 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-colors hover:bg-primary-dark"
-              >
-                Continue with Google
-              </Link>
             </div>
           </div>
         </div>
       )}
-
-      <Link
-        href="/search"
-        className="mt-6 flex items-center gap-2.5 rounded-xl border border-tint bg-tint-soft px-4 py-3 text-sm text-ink-muted transition-colors hover:border-primary/40"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4.5 w-4.5">
-          <path d="m20 20-4.05-4.05M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" strokeLinecap="round" />
-        </svg>
-        Search your stash…
-      </Link>
 
       <div className="sticky top-0 z-20 -mx-5 mt-7 bg-white px-5 py-3">
         <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -330,4 +330,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
