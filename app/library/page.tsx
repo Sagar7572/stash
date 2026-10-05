@@ -7,7 +7,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import StatusBadge from "@/components/StatusBadge";
 import TypeIcon from "@/components/TypeIcon";
 import { STATUS_LABELS, displaySource, type Item, type Status } from "@/lib/data";
-import { deleteItem, useLocalItems, fetchItems, fetchSubjects } from "@/lib/storage";
+import { deleteItem, useLocalItems } from "@/lib/storage";
 
 const filters: ("all" | Status)[] = ["all", "to-read", "reading", "done"];
 
