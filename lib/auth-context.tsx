@@ -44,6 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const newUser = session?.user ?? null;
         // Detect sign-in (was null, now has user)
         if (prevUser === null && newUser !== null) {
+          // User just signed in - mark that they have an account
+          if (typeof window !== "undefined") {
+            localStorage.setItem("stash_has_account", "1");
+          }
           // User just signed in - trigger merge
           setMerging(true);
           mergeLocalToSupabase().then(result => {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Chip from "@/components/Chip";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import StatusBadge from "@/components/StatusBadge";
@@ -14,13 +14,22 @@ const filters: ("all" | Status)[] = ["all", "to-read", "reading", "done"];
 
 export default function LibraryPage() {
   const { items, loading, refresh } = useLocalItems();
-  const { merging } = useAuth();
+  const { merging, user, loading: authLoading } = useAuth();
   const [filter, setFilter] = useState<"all" | Status>("all");
   const [pendingDelete, setPendingDelete] = useState<Item | null>(null);
+  const [hasAccount, setHasAccount] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading) {
+      const flag = localStorage.getItem("stash_has_account");
+      setHasAccount(flag === "1");
+    }
+  }, [authLoading]);
 
   const visible =
     filter === "all" ? items : items.filter((item) => item.status === filter);
   const isSyncing = merging;
+  const isSignedOut = !authLoading && !user;
 
   return (
     <div className="px-5 pt-8">
@@ -98,10 +107,25 @@ export default function LibraryPage() {
 
         {!loading && visible.length === 0 && (
           <li className="rounded-xl bg-tint-soft p-8 text-center">
-            <p className="text-sm font-medium text-ink">Nothing here yet</p>
-            <p className="mt-1 text-xs text-ink-muted">
-              Tap the + button to add your first item.
-            </p>
+            {hasAccount && isSignedOut && filter === "all" ? (
+              <>
+                <p className="text-sm font-medium text-ink">Your saved items are in your account.</p>
+                <p className="mt-1 text-xs text-ink-muted">Sign in to see them.</p>
+                <button
+                  onClick={() => window.location.href = "/login"}
+                  className="mt-4 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-colors hover:bg-primary-dark"
+                >
+                  Sign in
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-ink">Nothing here yet</p>
+                <p className="mt-1 text-xs text-ink-muted">
+                  Tap the + button to add your first item.
+                </p>
+              </>
+            )}
           </li>
         )}
       </ul>

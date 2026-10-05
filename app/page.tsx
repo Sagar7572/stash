@@ -67,11 +67,19 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<{ name: string; email: string; avatarUrl: string } | null>(null);
   const [sampleAdded, setSampleAdded] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [hasAccount, setHasAccount] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading) {
+      const flag = localStorage.getItem("stash_has_account");
+      setHasAccount(flag === "1");
+    }
+  }, [authLoading]);
 
   const isLoading = authLoading || itemsLoading;
   const isSignedOut = !authLoading && !user;
   const hasRealItems = items.length > 0;
-  const showOnboarding = isSignedOut && !hasRealItems && !sampleAdded;
+  const showOnboarding = isSignedOut && !hasRealItems && !sampleAdded && !hasAccount;
   const showNudge = isSignedOut && !sampleAdded && items.length >= 2 && !nudgeDismissed;
   const isSyncing = merging && !isSignedOut;
 
@@ -345,12 +353,27 @@ export default function DashboardPage() {
               ))}
               {visible.length === 0 && !showOnboarding && (
                 <div className="rounded-xl bg-tint-soft p-8 text-center">
-                  <p className="text-sm font-medium text-ink">
-                    {subject === "All" ? "Nothing saved yet" : `Nothing saved under ${subject} yet`}
-                  </p>
-                  <p className="mt-1 text-xs text-ink-muted">
-                    Tap + New to add your first link, PDF or note.
-                  </p>
+                  {hasAccount && isSignedOut && subject === "All" ? (
+                    <>
+                      <p className="text-sm font-medium text-ink">Your saved items are in your account.</p>
+                      <p className="mt-1 text-xs text-ink-muted">Sign in to see them.</p>
+                      <button
+                        onClick={() => window.location.href = "/login"}
+                        className="mt-4 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-colors hover:bg-primary-dark"
+                      >
+                        Sign in
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-ink">
+                        {subject === "All" ? "Nothing saved yet" : `Nothing saved under ${subject} yet`}
+                      </p>
+                      <p className="mt-1 text-xs text-ink-muted">
+                        Tap + New to add your first link, PDF or note.
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
               {sampleAdded && (
