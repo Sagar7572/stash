@@ -6,12 +6,14 @@ export default function SubjectCombobox({
   name,
   options,
   placeholder = "Type or pick a subject",
+  defaultValue = "",
 }: {
   name: string;
   options: string[];
   placeholder?: string;
+  defaultValue?: string;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
 
   const query = value.trim().toLowerCase();

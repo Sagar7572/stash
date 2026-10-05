@@ -199,13 +199,14 @@ export async function mergeLocalToSupabase(): Promise<{ success: boolean; migrat
 
 export async function updateItem(
   id: string,
-  patch: Partial<Pick<Item, "status" | "notes" | "summary" | "keywords">>
+  patch: Partial<Omit<Item, "id" | "created_at">>
 ): Promise<void> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (user) {
-    await supabase.from("items").update(patch).eq("id", id);
+    const { error } = await supabase.from("items").update(patch).eq("id", id);
+    if (error) throw error;
     return;
   }
 

@@ -108,15 +108,27 @@ export default function ItemDetailPage() {
 
   return (
     <div className="px-5 pt-8">
-      <Link
-        href="/library"
-        className="inline-flex items-center gap-1 text-sm font-medium text-primary"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
-          <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        Library
-      </Link>
+      <div className="flex items-start justify-between gap-3">
+        <Link
+          href="/library"
+          className="inline-flex items-center gap-1 text-sm font-medium text-primary"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+            <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Library
+        </Link>
+        <Link
+          href={`/item/${item.id}/edit`}
+          className="shrink-0 p-1.5 text-ink-muted transition-colors hover:text-primary"
+          aria-label="Edit item"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="h-5 w-5">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5Z" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Link>
+      </div>
 
       <div className="mt-5 flex items-start gap-3">
         <TypeIcon type={item.type} />
