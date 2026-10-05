@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import SubjectCombobox from "@/components/SubjectCombobox";
 import KeywordChips from "@/components/KeywordChips";
-import { updateItem, fetchSubjects } from "@/lib/storage";
+import { updateItem, fetchSubjects, getLocalItems } from "@/lib/storage";
 import { STATUS_LABELS, type ItemType, type Status } from "@/lib/data";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
 
 function isValidUrl(url: string): boolean {
   try {
@@ -28,56 +29,99 @@ const typeOptions: { value: ItemType; label: string }[] = [
   { value: "note", label: "Note" },
 ];
 
+interface ItemData {
+  id: string;
+  title: string;
+  url: string;
+  type: ItemType;
+  subject: string;
+  tags: string[];
+  status: Status;
+  summary: string;
+  notes: string;
+  keywords: string[];
+}
+
 interface EditItemPageProps {
   params: Promise<{ id: string }>;
 }
 
 export default function EditItemPage({ params }: EditItemPageProps) {
   const router = useRouter();
-  const [item, setItem] = useState<{
-    id: string;
-    title: string;
-    url: string;
-    type: ItemType;
-    subject: string;
-    tags: string[];
-    status: Status;
-    summary: string;
-    notes: string;
-    keywords: string[];
-  } | null>(null);
+  const { user, loading: authLoading } = useAuth();
+  const [item, setItem] = useState<ItemData | null>(null);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summarising, setSummarising] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [keywords, setKeywords] = useState<string[]>([]);
+  const [loadingItem, setLoadingItem] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     params.then(async ({ id }) => {
-      const res = await fetch(`/api/item/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (!cancelled) {
-          setItem({
-            id: data.id,
-            title: data.title,
-            url: data.url,
-            type: data.type,
-            subject: data.subject,
-            tags: data.tags,
-            status: data.status,
-            summary: data.summary,
-            notes: data.notes,
-            keywords: data.keywords,
-          });
-          if (data.keywords?.length) setKeywords(data.keywords);
+      setLoadingItem(true);
+      try {
+        let itemData: ItemData | null = null;
+
+        if (!authLoading && !user) {
+          // Signed-out: load from localStorage
+          const localItems = getLocalItems();
+          const localItem = localItems.find((it) => it.id === id);
+          if (localItem) {
+            itemData = {
+              id: localItem.id,
+              title: localItem.title,
+              url: localItem.url,
+              type: localItem.type,
+              subject: localItem.subject,
+              tags: localItem.tags,
+              status: localItem.status,
+              summary: localItem.summary,
+              notes: localItem.notes ?? "",
+              keywords: localItem.keywords ?? [],
+            };
+          }
+        } else {
+          // Signed-in: load from Supabase via API
+          const res = await fetch(`/api/item/${id}`);
+          if (res.ok) {
+            const data = await res.json();
+            itemData = {
+              id: data.id,
+              title: data.title,
+              url: data.url,
+              type: data.type,
+              subject: data.subject,
+              tags: data.tags,
+              status: data.status,
+              summary: data.summary,
+              notes: data.notes ?? "",
+              keywords: data.keywords ?? [],
+            };
+          }
         }
+
+        if (!cancelled) {
+          if (itemData) {
+            setItem(itemData);
+            if (itemData.keywords?.length) setKeywords(itemData.keywords);
+          } else {
+            setNotFound(true);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setNotFound(true);
+        }
+      } finally {
+        if (!cancelled) setLoadingItem(false);
       }
     });
     return () => { cancelled = true; };
-  }, [params]);
+  }, [params, authLoading, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,10 +200,21 @@ export default function EditItemPage({ params }: EditItemPageProps) {
     }
   }
 
-  if (!item) {
+  if (loadingItem || authLoading) {
     return (
       <div className="px-5 pt-8 text-center">
         <div className="h-8 w-24 animate-pulse rounded-lg bg-tint-soft" />
+      </div>
+    );
+  }
+
+  if (notFound || !item) {
+    return (
+      <div className="px-5 pt-8 text-center">
+        <h1 className="text-xl font-bold text-ink">Item not found</h1>
+        <Link href="/library" className="mt-3 inline-block text-sm font-semibold text-primary">
+          Back to Library
+        </Link>
       </div>
     );
   }
