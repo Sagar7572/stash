@@ -25,7 +25,7 @@ function generateId(): string {
   return crypto.randomUUID();
 }
 
-function getLocalItems(): Item[] {
+export function getLocalItems(): Item[] {
   if (typeof window === "undefined") return [];
   try {
     const stored = localStorage.getItem(STORAGE_KEY);

@@ -5,6 +5,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import StatusBadge from "@/components/StatusBadge";
 import TypeIcon from "@/components/TypeIcon";
 import { displaySource } from "@/lib/data";
+import { useAuth } from "@/lib/auth-context";
+import { getLocalItems } from "@/lib/storage";
 
 interface SearchResult {
   id: string;
@@ -23,7 +25,6 @@ function highlightWord(text: string, query: string): React.ReactNode {
   const lowerQuery = query.toLowerCase().trim();
   if (!lowerQuery) return text;
 
-  // Match whole words that start with the query (case-insensitive)
   const regex = new RegExp(`(\\b\\w*${lowerQuery}\\w*\\b)`, "gi");
   const parts = text.split(regex);
 
@@ -103,7 +104,64 @@ function highlightKeywordsSnippet(text: string, query: string): React.ReactNode 
   );
 }
 
+function searchLocalItems(query: string): SearchResult[] {
+  const lowerQuery = query.toLowerCase().trim();
+  if (!lowerQuery) return [];
+
+  const items = getLocalItems();
+  const words = lowerQuery.split(/\s+/).filter(Boolean);
+
+  return items
+    .map((item) => {
+      const matches: Array<{ field: string; snippet: string }> = [];
+
+      // Check title
+      if (item.title.toLowerCase().includes(lowerQuery)) {
+        matches.push({ field: "title", snippet: item.title });
+      }
+
+      // Check summary
+      if (item.summary?.toLowerCase().includes(lowerQuery)) {
+        // Extract snippet around the match
+        const idx = item.summary.toLowerCase().indexOf(lowerQuery);
+        const start = Math.max(0, idx - 50);
+        const end = Math.min(item.summary.length, idx + lowerQuery.length + 110);
+        let snippet = item.summary.slice(start, end);
+        if (start > 0) snippet = "…" + snippet;
+        if (end < item.summary.length) snippet = snippet + "…";
+        matches.push({ field: "summary", snippet });
+      }
+
+      // Check keywords
+      if (item.keywords?.some((k: string) => k.toLowerCase().includes(lowerQuery))) {
+        const matchedKeywords = item.keywords
+          .filter((k: string) => k.toLowerCase().includes(lowerQuery))
+          .join(", ");
+        matches.push({ field: "keywords", snippet: matchedKeywords });
+      }
+
+      if (matches.length === 0) return null;
+
+      return {
+        id: item.id,
+        title: item.title,
+        summary: item.summary,
+        keywords: item.keywords,
+        url: item.url,
+        type: item.type,
+        subject: item.subject,
+        status: item.status,
+        created_at: item.created_at,
+        matches,
+      } as SearchResult;
+    })
+    .filter((item): item is SearchResult => item !== null)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 20);
+}
+
 export default function SearchPage() {
+  const { user, loading: authLoading } = useAuth();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -117,7 +175,6 @@ export default function SearchPage() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Clear results when query becomes empty
   useEffect(() => {
     if (!query.trim()) {
       setTimeout(() => {
@@ -127,7 +184,27 @@ export default function SearchPage() {
     }
   }, [query]);
 
-  const doSearch = useCallback(async (searchQuery: string) => {
+  const doLocalSearch = useCallback((searchQuery: string) => {
+    cancelledRef.current = false;
+    setTimeout(() => setLoading(true), 0);
+
+    try {
+      const localResults = searchLocalItems(searchQuery);
+      if (!cancelledRef.current) {
+        setTimeout(() => setResults(localResults), 0);
+      }
+    } catch {
+      if (!cancelledRef.current) {
+        setTimeout(() => setResults([]), 0);
+      }
+    } finally {
+      if (!cancelledRef.current) {
+        setTimeout(() => setLoading(false), 0);
+      }
+    }
+  }, []);
+
+  const doRemoteSearch = useCallback(async (searchQuery: string) => {
     cancelledRef.current = false;
     setTimeout(() => setLoading(true), 0);
 
@@ -147,6 +224,14 @@ export default function SearchPage() {
       }
     }
   }, []);
+
+  const doSearch = useCallback((searchQuery: string) => {
+    if (!authLoading && !user) {
+      doLocalSearch(searchQuery);
+    } else {
+      doRemoteSearch(searchQuery);
+    }
+  }, [authLoading, user, doLocalSearch, doRemoteSearch]);
 
   useEffect(() => {
     if (!debouncedQuery.trim() || debouncedQuery.trim().length < 3) return;
