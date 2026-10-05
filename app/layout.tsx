@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
 import BottomTabBar from "@/components/BottomTabBar";
 import VisitorCounter from "@/components/VisitorCounter";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <BottomTabBar />
           </div>
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   );
