@@ -8,16 +8,19 @@ import StatusBadge from "@/components/StatusBadge";
 import TypeIcon from "@/components/TypeIcon";
 import { STATUS_LABELS, displaySource, type Item, type Status } from "@/lib/data";
 import { deleteItem, useLocalItems } from "@/lib/storage";
+import { useAuth } from "@/lib/auth-context";
 
 const filters: ("all" | Status)[] = ["all", "to-read", "reading", "done"];
 
 export default function LibraryPage() {
   const { items, loading, refresh } = useLocalItems();
+  const { merging } = useAuth();
   const [filter, setFilter] = useState<"all" | Status>("all");
   const [pendingDelete, setPendingDelete] = useState<Item | null>(null);
 
   const visible =
     filter === "all" ? items : items.filter((item) => item.status === filter);
+  const isSyncing = merging;
 
   return (
     <div className="px-5 pt-8">
@@ -25,6 +28,18 @@ export default function LibraryPage() {
       <p className="mt-1 text-sm text-ink-secondary">
         {loading ? "Loading…" : `${items.length} saved item${items.length === 1 ? "" : "s"}`}
       </p>
+
+      {isSyncing && (
+        <div className="mt-3 px-5">
+          <div className="flex items-center justify-center gap-2 text-xs text-ink-muted bg-tint-soft rounded-xl py-2">
+            <svg className="animate-spin h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Syncing your saved items…</span>
+          </div>
+        </div>
+      )}
 
       <div className="sticky top-0 z-20 -mx-5 mt-4 bg-white px-5 py-3">
         <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

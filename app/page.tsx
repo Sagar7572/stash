@@ -61,7 +61,7 @@ type ExampleItem = typeof EXAMPLE_ITEMS[number];
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, loading: authLoading, mergeLocalData } = useAuth();
+  const { user, loading: authLoading, mergeLocalData, merging } = useAuth();
   const { items, loading: itemsLoading, refresh } = useLocalItems();
   const [subject, setSubject] = useState("All");
   const [profile, setProfile] = useState<{ name: string; email: string; avatarUrl: string } | null>(null);
@@ -73,6 +73,7 @@ export default function DashboardPage() {
   const hasRealItems = items.length > 0;
   const showOnboarding = isSignedOut && !hasRealItems && !sampleAdded;
   const showNudge = isSignedOut && !sampleAdded && items.length >= 2 && !nudgeDismissed;
+  const isSyncing = merging && !isSignedOut;
 
   useEffect(() => {
     if (!authLoading && !itemsLoading && user) {
@@ -297,6 +298,18 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {isSyncing && (
+        <div className="mt-3 px-5">
+          <div className="flex items-center justify-center gap-2 text-xs text-ink-muted bg-tint-soft rounded-xl py-2">
+            <svg className="animate-spin h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Syncing your saved items…</span>
+          </div>
+        </div>
+      )}
 
       <section className="mt-3 pb-4">
         <h2 className="text-base font-semibold text-ink">Your stash</h2>

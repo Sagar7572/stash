@@ -552,5 +552,14 @@ export function useLocalItems(): { items: Item[]; loading: boolean; refresh: () 
     };
   }, []);
 
+  // Listen for merge completion and auto-refresh
+  useEffect(() => {
+    function handleMergeComplete() {
+      refresh();
+    }
+    window.addEventListener("stash:merge-complete", handleMergeComplete);
+    return () => window.removeEventListener("stash:merge-complete", handleMergeComplete);
+  }, []);
+
   return { items, loading, refresh };
 }
