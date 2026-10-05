@@ -32,26 +32,32 @@ const EXAMPLE_ITEMS = [
     type: "article" as const,
     source: "arxiv.org",
     subject: "AI",
-    tags: ["transformer", "attention", "nlp"],
+    tags: ["transformer", "attention", "nlp"] as string[],
     status: "to-read" as const,
-    summary: "The seminal paper introducing the Transformer architecture, replacing recurrence with self-attention for sequence modeling.",
-    keywords: ["transformer", "attention", "nlp"],
+    summary:
+      "The 2017 paper that introduced the Transformer architecture, replacing recurrent neural networks with self-attention mechanisms. This breakthrough enabled parallel processing of sequences, making it possible to train much larger models on more data. The Transformer became the foundation for BERT, GPT, and all modern large language models, revolutionizing natural language processing and AI.",
+    keywords: ["transformer", "attention", "nlp", "deep learning"] as string[],
     isExample: true,
+    notes: "",
   },
   {
     id: "example-2",
     title: "The Lean Startup — notes",
-    url: "https://example.com/lean-startup-notes",
-    type: "pdf" as const,
-    source: "local.pdf",
+    url: "",
+    type: "note" as const,
+    source: "local note",
     subject: "Product",
-    tags: ["startup", "mvp", "product"],
-    status: "reading" as const,
-    summary: "Key takeaways from Eric Ries' Lean Startup methodology: build-measure-learn loop, validated learning, and pivot vs persevere decisions.",
-    keywords: ["startup", "mvp", "product"],
+    tags: ["startup", "mvp", "product"] as string[],
+    status: "to-read" as const,
+    summary:
+      "Eric Ries' methodology for building startups through rapid experimentation. Instead of elaborate business plans, create a minimum viable product (MVP) to test hypotheses with real customers. Use the build-measure-learn loop: build a small feature, measure how users respond, learn whether to pivot or persevere. Validated learning replaces gut feelings, reducing waste and increasing chances of product-market fit.",
+    keywords: ["startup", "mvp", "product", "lean"] as string[],
     isExample: true,
+    notes: "",
   },
 ];
+
+type ExampleItem = typeof EXAMPLE_ITEMS[number];
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -115,6 +121,22 @@ export default function DashboardPage() {
 
   const handleTrySample = async () => {
     await addItem(SAMPLE_ITEM);
+    setSampleAdded(true);
+    refresh();
+  };
+
+  const handleAddExample = async (example: ExampleItem) => {
+    await addItem({
+      title: example.title,
+      url: example.url,
+      type: example.type,
+      subject: example.subject,
+      tags: example.tags,
+      status: example.status,
+      summary: example.summary,
+      notes: example.notes,
+      keywords: example.keywords,
+    });
     setSampleAdded(true);
     refresh();
   };
@@ -201,15 +223,15 @@ export default function DashboardPage() {
           </div>
 
           <p className="text-xs text-ink-muted text-center">
-            Or browse the examples below to see how items look.
+            Or tap an example below to add it to your stash.
           </p>
 
           <div className="space-y-3">
             {EXAMPLE_ITEMS.map((item) => (
-              <Link
+              <button
                 key={item.id}
-                href={`/item/${item.id}`}
-                className="block rounded-xl border border-primary/20 bg-primary/5 p-4 shadow-sm"
+                onClick={() => handleAddExample(item)}
+                className="block w-full text-left rounded-xl border border-primary/20 bg-primary/5 p-4 shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/10"
               >
                 <div className="flex items-start gap-3">
                   <TypeIcon type={item.type} />
@@ -235,7 +257,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
-              </Link>
+              </button>
             ))}
           </div>
         </div>
